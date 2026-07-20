@@ -11,7 +11,7 @@ import { DailySync } from '../src/daily/DailySync';
 import { parseTaskLine } from '../src/indexer/tokenizer';
 import { TaskActions } from '../src/mutations/actions';
 import { addCompletionStamp, insertTaskLine } from '../src/mutations/lineEdits';
-import { findUnloggedCompletions } from '../src/store/logReconcile';
+import { findStampDrift, findUnloggedCompletions } from '../src/store/logReconcile';
 import type { ExternalCompletionCandidate } from '../src/store/logReconcile';
 import { addDaysISO, todayISO } from '../src/store/selectors';
 import { createTaskFlowStore } from '../src/store/store';
@@ -133,6 +133,11 @@ async function makeHarness(files: Record<string, string>): Promise<Harness> {
 			vault.files.set(path, stamped);
 		}
 		for (const c of unlogged) await actions.recordExternalCompletion(c, c.stampDate ?? todayISO());
+
+		// Mirror the real indexer: sync an already-logged completion's date to
+		// a hand-edited ✅ stamp (markdown wins).
+		const drift = findStampDrift(plugin.persisted.log, candidates);
+		for (const d of drift) await actions.editCompletionDate(d.taskId, d.oldCompletedAt, d.newDateISO);
 	};
 	const reindex = async () => {
 		for (const path of vault.files.keys()) if (path.endsWith('.md')) await indexFile(path);
@@ -399,6 +404,29 @@ describe('e2e: completions made outside the plugin', () => {
 		);
 		const entry = h.plugin.persisted.log.find((e) => e.taskId === 't-cat');
 		expect(entry).toMatchObject({ taskId: 't-cat', status: 'done' });
+	});
+
+	it('hand-editing an already-logged ✅ stamp syncs History and moves the daily journal line', async () => {
+		await h.actions.completeTask('t-mom'); // logged for TODAY, journaled to TODAY's note
+		const corrected = addDaysISO(TODAY, -4);
+
+		// Hand-edit the stamp directly in the note — not through any plugin action.
+		const edited = h.fileContent('Inbox.md').replace(`✅ ${TODAY}`, `✅ ${corrected}`);
+		h.vault.seed({ 'Inbox.md': edited });
+		await h.reindex();
+
+		const entry = h.plugin.persisted.log.find((e) => e.taskId === 't-mom');
+		expect(todayISO(new Date(entry!.completedAt))).toBe(corrected);
+		expect(h.fileContent(`${TODAY}.md`)).not.toContain('%%t-mom%%');
+		expect(h.fileContent(`${corrected}.md`)).toContain('%%t-mom%%');
+	});
+
+	it('does not re-sync once the log already matches the stamp', async () => {
+		await h.actions.completeTask('t-mom');
+		const before = h.plugin.persisted.log[0]!.completedAt;
+		await h.reindex();
+		await h.reindex();
+		expect(h.plugin.persisted.log[0]!.completedAt).toBe(before);
 	});
 });
 

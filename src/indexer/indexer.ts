@@ -2,8 +2,8 @@ import { TFile } from 'obsidian';
 import type { CachedMetadata, HeadingCache } from 'obsidian';
 import type TaskFlowPlugin from '../main';
 import { addCompletionStamp, splitLines } from '../mutations/lineEdits';
-import { findUnloggedCompletions, reconcileLog } from '../store/logReconcile';
-import type { ExternalCompletionCandidate } from '../store/logReconcile';
+import { findStampDrift, findUnloggedCompletions, reconcileLog } from '../store/logReconcile';
+import type { ExternalCompletionCandidate, StampDrift } from '../store/logReconcile';
 import { todayISO } from '../store/selectors';
 import type { ProjectInfo, ProjectStatus, Task } from '../types';
 import { own } from '../utils';
@@ -288,6 +288,8 @@ export class TaskIndexer {
 		if (missingIds.length > 0) void this.assignBlockIds(file, missingIds);
 		const unlogged = findUnloggedCompletions(this.plugin.persisted.log, completionCandidates);
 		if (unlogged.length > 0) void this.recordUnloggedCompletions(file, unlogged);
+		const drift = findStampDrift(this.plugin.persisted.log, completionCandidates);
+		if (drift.length > 0) void this.applyStampDrift(drift);
 		return tasks.length;
 	}
 
@@ -380,6 +382,19 @@ export class TaskIndexer {
 			await this.plugin.actions.recordExternalCompletion(item, item.stampDate ?? today);
 		}
 		this.log(`recovered ${items.length} unlogged completion(s) in ${file.path}`);
+	}
+
+	/**
+	 * Syncs an already-logged completion's date to a hand-edited ✅ stamp —
+	 * reuses the same action the "Edit date…" History menu item calls, since
+	 * the effect is identical (correct the log entry, move the daily journal
+	 * line); the only difference is what triggered it.
+	 */
+	private async applyStampDrift(drift: StampDrift[]): Promise<void> {
+		for (const d of drift) {
+			await this.plugin.actions.editCompletionDate(d.taskId, d.oldCompletedAt, d.newDateISO);
+		}
+		this.log(`synced ${drift.length} completion date(s) to their markdown stamp`);
 	}
 
 	private log(message: string): void {

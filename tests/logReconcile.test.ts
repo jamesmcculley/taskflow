@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findUnloggedCompletions, reconcileLog } from '../src/store/logReconcile';
+import { findStampDrift, findUnloggedCompletions, reconcileLog } from '../src/store/logReconcile';
 import type { ExternalCompletionCandidate } from '../src/store/logReconcile';
 import type { CompletionEntry, Task } from '../src/types';
 
@@ -110,5 +110,40 @@ describe('findUnloggedCompletions', () => {
 	it('carries the stamp date through untouched for later use', () => {
 		const [result] = findUnloggedCompletions([], [candidate({ stampDate: '2026-07-15' })]);
 		expect(result?.stampDate).toBe('2026-07-15');
+	});
+});
+
+describe('findStampDrift', () => {
+	it('flags a logged completion whose stamp was hand-edited afterward', () => {
+		const log = [entry({ completedAt: '2026-07-19T12:00:00.000Z' })]; // day 07-19
+		const drift = findStampDrift(log, [candidate({ stampDate: '2026-07-15' })]);
+		expect(drift).toEqual([
+			{ taskId: 't-a', oldCompletedAt: '2026-07-19T12:00:00.000Z', newDateISO: '2026-07-15' },
+		]);
+	});
+
+	it('does nothing when the stamp already matches the logged day', () => {
+		const log = [entry({ completedAt: '2026-07-19T12:00:00.000Z' })];
+		expect(findStampDrift(log, [candidate({ stampDate: '2026-07-19' })])).toEqual([]);
+	});
+
+	it('ignores candidates with no stamp or with cancelled status (no ✅ date to compare)', () => {
+		const log = [entry({ completedAt: '2026-07-19T12:00:00.000Z' })];
+		expect(findStampDrift(log, [candidate({ stampDate: undefined })])).toEqual([]);
+		expect(
+			findStampDrift(log, [candidate({ status: 'cancelled', stampDate: '2026-07-15' })]),
+		).toEqual([]);
+	});
+
+	it('skips ambiguous cases: more than one done entry for the same task (recurring history)', () => {
+		const log = [
+			entry({ completedAt: '2026-07-12T12:00:00.000Z' }),
+			entry({ completedAt: '2026-07-19T12:00:00.000Z' }),
+		];
+		expect(findStampDrift(log, [candidate({ stampDate: '2026-07-15' })])).toEqual([]);
+	});
+
+	it('does nothing for an unlogged candidate (no entry to drift from)', () => {
+		expect(findStampDrift([], [candidate({ stampDate: '2026-07-15' })])).toEqual([]);
 	});
 });

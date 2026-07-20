@@ -1,3 +1,4 @@
+import { todayISO } from './selectors';
 import type { CompletionEntry, Task } from '../types';
 
 /**
@@ -48,4 +49,36 @@ export function findUnloggedCompletions(
 	candidates: ExternalCompletionCandidate[],
 ): ExternalCompletionCandidate[] {
 	return candidates.filter((c) => !log.some((e) => e.taskId === c.taskId && e.status === c.status));
+}
+
+export interface StampDrift {
+	taskId: string;
+	oldCompletedAt: string;
+	newDateISO: string;
+}
+
+/**
+ * Finds already-logged 'done' completions whose local day no longer matches
+ * the task's current ✅ stamp — the user hand-edited the date directly in
+ * markdown after it was already logged. Markdown wins: History, Stats, and
+ * the daily journal should follow. Skipped when a task has more than one
+ * 'done' entry (recurring tasks accumulate one per past occurrence) since
+ * it's ambiguous which entry the line's single stamp corresponds to — the
+ * per-entry "Edit date…" action handles that disambiguated case instead.
+ */
+export function findStampDrift(
+	log: CompletionEntry[],
+	candidates: ExternalCompletionCandidate[],
+): StampDrift[] {
+	const drift: StampDrift[] = [];
+	for (const c of candidates) {
+		if (c.status !== 'done' || c.stampDate === undefined) continue;
+		const entries = log.filter((e) => e.taskId === c.taskId && e.status === 'done');
+		if (entries.length !== 1) continue;
+		const entry = entries[0]!;
+		if (todayISO(new Date(entry.completedAt)) !== c.stampDate) {
+			drift.push({ taskId: c.taskId, oldCompletedAt: entry.completedAt, newDateISO: c.stampDate });
+		}
+	}
+	return drift;
 }
