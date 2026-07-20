@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { reconcileLog } from '../src/store/logReconcile';
+import { findUnloggedCompletions, reconcileLog } from '../src/store/logReconcile';
+import type { ExternalCompletionCandidate } from '../src/store/logReconcile';
 import type { CompletionEntry, Task } from '../src/types';
 
 function task(over: Partial<Task>): Task {
@@ -72,5 +73,42 @@ describe('reconcileLog', () => {
 		expect(reconcileLog(log, [task({ status: 'cancelled' })])).toEqual([
 			entry({ status: 'cancelled', completedAt: '2026-07-19T00:00:00.000Z' }),
 		]);
+	});
+});
+
+function candidate(over: Partial<ExternalCompletionCandidate>): ExternalCompletionCandidate {
+	return { taskId: 't-a', title: 'Test', status: 'done', ...over };
+}
+
+describe('findUnloggedCompletions', () => {
+	it('flags a done task with no matching log entry — the native-checkbox-click case', () => {
+		// Reproduces the exact real-vault bug: checked off via Obsidian's own
+		// checkbox (not the plugin), so nothing ever logged it.
+		expect(findUnloggedCompletions([], [candidate({})])).toEqual([candidate({})]);
+	});
+
+	it('does not re-flag a completion the plugin already logged', () => {
+		const log = [entry({})];
+		expect(findUnloggedCompletions(log, [candidate({})])).toEqual([]);
+	});
+
+	it('distinguishes done from cancelled — a cancel entry does not cover a done candidate', () => {
+		const log = [entry({ status: 'cancelled' })];
+		expect(findUnloggedCompletions(log, [candidate({ status: 'done' })])).toEqual([
+			candidate({ status: 'done' }),
+		]);
+	});
+
+	it('matches by taskId + status, not just taskId — recurring tasks reuse one ID across many entries', () => {
+		const log = [entry({ status: 'done', completedAt: '2026-07-01T12:00:00.000Z' })];
+		expect(findUnloggedCompletions(log, [candidate({ status: 'done' })])).toEqual([]);
+		expect(findUnloggedCompletions(log, [candidate({ status: 'cancelled' })])).toEqual([
+			candidate({ status: 'cancelled' }),
+		]);
+	});
+
+	it('carries the stamp date through untouched for later use', () => {
+		const [result] = findUnloggedCompletions([], [candidate({ stampDate: '2026-07-15' })]);
+		expect(result?.stampDate).toBe('2026-07-15');
 	});
 });

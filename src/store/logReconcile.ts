@@ -26,3 +26,26 @@ export function reconcileLog(log: CompletionEntry[], tasks: Task[]): CompletionE
 	if (drop.size === 0) return null;
 	return log.filter((e) => !drop.has(e));
 }
+
+/** A done/cancelled task line found during indexing, candidate for auto-logging. */
+export interface ExternalCompletionCandidate {
+	taskId: string;
+	title: string;
+	project?: string;
+	status: 'done' | 'cancelled';
+	/** ISO date from the line's own ✅ stamp, if it already has one (done only). */
+	stampDate?: string;
+}
+
+/**
+ * Finds done/cancelled tasks with no matching History entry yet — completed
+ * by some means other than the plugin's own actions (Obsidian's native
+ * checkbox, hand-typing `[x]`, an externally synced change), so nothing ever
+ * logged them. Every candidate returned needs a completion recorded for it.
+ */
+export function findUnloggedCompletions(
+	log: CompletionEntry[],
+	candidates: ExternalCompletionCandidate[],
+): ExternalCompletionCandidate[] {
+	return candidates.filter((c) => !log.some((e) => e.taskId === c.taskId && e.status === c.status));
+}

@@ -259,7 +259,7 @@ export class TaskActions {
 
 	/** Appends a completion-log entry and persists; returns the timestamp. */
 	private async recordCompletion(
-		task: Task,
+		task: Pick<Task, 'id' | 'title' | 'project'>,
 		status: 'done' | 'cancelled',
 		asOf?: string,
 	): Promise<string> {
@@ -280,6 +280,25 @@ export class TaskActions {
 			await this.plugin.dailySync.record(task.id, task.title, task.project, completedAt);
 		}
 		return completedAt;
+	}
+
+	/**
+	 * Logs a completion/cancellation the plugin didn't itself perform — a
+	 * native Obsidian checkbox click, hand-typed `[x]`, or an externally
+	 * synced change. Called by the indexer when it notices a done/cancelled
+	 * task with no matching History entry; the line's status (and, for
+	 * 'done', its ✅ stamp) is already correct by the time this runs — this
+	 * only creates the History entry and daily-note journal line.
+	 */
+	async recordExternalCompletion(
+		info: { taskId: string; title: string; project?: string; status: 'done' | 'cancelled' },
+		dateISO: string,
+	): Promise<void> {
+		await this.recordCompletion(
+			{ id: info.taskId, title: info.title, project: info.project },
+			info.status,
+			dateISO,
+		);
 	}
 
 	/**

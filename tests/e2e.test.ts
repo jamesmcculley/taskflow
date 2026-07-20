@@ -10,7 +10,9 @@ import { parseCapture, serializeCaptureLine } from '../src/capture/parser';
 import { DailySync } from '../src/daily/DailySync';
 import { parseTaskLine } from '../src/indexer/tokenizer';
 import { TaskActions } from '../src/mutations/actions';
-import { insertTaskLine } from '../src/mutations/lineEdits';
+import { addCompletionStamp, insertTaskLine } from '../src/mutations/lineEdits';
+import { findUnloggedCompletions } from '../src/store/logReconcile';
+import type { ExternalCompletionCandidate } from '../src/store/logReconcile';
 import { addDaysISO, todayISO } from '../src/store/selectors';
 import { createTaskFlowStore } from '../src/store/store';
 import type TaskFlowPlugin from '../src/main';
@@ -23,12 +25,12 @@ interface Harness {
 	plugin: TaskFlowPlugin;
 	vault: FakeVault;
 	actions: TaskActions;
-	reindex: () => void;
+	reindex: () => Promise<void>;
 	fileContent: (path: string) => string;
 	task: (id: string) => Task | undefined;
 }
 
-function makeHarness(files: Record<string, string>): Harness {
+async function makeHarness(files: Record<string, string>): Promise<Harness> {
 	const vault = new FakeVault();
 	vault.seed(files);
 	const store = createTaskFlowStore();
@@ -49,7 +51,7 @@ function makeHarness(files: Record<string, string>): Harness {
 	(plugin as { actions: TaskActions }).actions = actions;
 	(plugin as { dailySync: DailySync }).dailySync = dailySync;
 
-	const indexFile = (path: string) => {
+	const indexFile = async (path: string) => {
 		const content = vault.files.get(path) ?? '';
 		const lines = content.split('\n');
 		const fm: Record<string, string> = {};
@@ -70,12 +72,14 @@ function makeHarness(files: Record<string, string>): Harness {
 			: null;
 		let heading: string | undefined;
 		const tasks: Task[] = [];
+		const candidates: ExternalCompletionCandidate[] = [];
 		lines.forEach((raw, line) => {
 			const h = /^#{1,6}\s+(.+?)\s*$/.exec(raw);
 			if (h) heading = h[1];
 			if (/^\s/.test(raw)) return; // flat model: skip checklist children
 			const parsed = parseTaskLine(raw);
 			if (!parsed?.blockId) return;
+			const taskProject = isProject ? path : undefined;
 			tasks.push({
 				id: parsed.blockId,
 				title: parsed.title,
@@ -86,7 +90,7 @@ function makeHarness(files: Record<string, string>): Harness {
 				due: parsed.due,
 				recurrenceText: parsed.recurrenceText,
 				tags: parsed.tags,
-				project: isProject ? path : undefined,
+				project: taskProject,
 				projectStatus: project?.status,
 				heading,
 				order: line,
@@ -96,13 +100,44 @@ function makeHarness(files: Record<string, string>): Harness {
 				scheduledTime: parsed.scheduledTime,
 				completedAt: plugin.persisted.completedAt[parsed.blockId],
 			});
+			if (parsed.status !== 'todo') {
+				candidates.push({
+					taskId: parsed.blockId,
+					title: parsed.title,
+					project: taskProject,
+					status: parsed.status === 'cancelled' ? 'cancelled' : 'done',
+					stampDate: parsed.completedDate,
+				});
+			}
 		});
 		store.getState().setFileIndex(path, tasks, project);
+
+		// Mirror the real indexer: notice done/cancelled tasks with no matching
+		// History entry (a native checkbox click, hand-typed [x], etc.) and log
+		// them the same way completing a task through the plugin would.
+		const unlogged = findUnloggedCompletions(plugin.persisted.log, candidates);
+		const needsStamp = new Set(
+			unlogged.filter((c) => c.status === 'done' && c.stampDate === undefined).map((c) => c.taskId),
+		);
+		if (needsStamp.size > 0) {
+			const today = todayISO();
+			const content = vault.files.get(path) ?? '';
+			const stamped = content
+				.split('\n')
+				.map((line) => {
+					const parsed = parseTaskLine(line);
+					if (!parsed?.blockId || !needsStamp.has(parsed.blockId) || parsed.completedDate) return line;
+					return addCompletionStamp(line, today);
+				})
+				.join('\n');
+			vault.files.set(path, stamped);
+		}
+		for (const c of unlogged) await actions.recordExternalCompletion(c, c.stampDate ?? todayISO());
 	};
-	const reindex = () => {
-		for (const path of vault.files.keys()) if (path.endsWith('.md')) indexFile(path);
+	const reindex = async () => {
+		for (const path of vault.files.keys()) if (path.endsWith('.md')) await indexFile(path);
 	};
-	reindex();
+	await reindex();
 
 	return {
 		plugin,
@@ -135,8 +170,8 @@ const PROJECT = [
 ].join('\n');
 
 let h: Harness;
-beforeEach(() => {
-	h = makeHarness({ 'Inbox.md': INBOX, 'Projects/Site.md': PROJECT });
+beforeEach(async () => {
+	h = await makeHarness({ 'Inbox.md': INBOX, 'Projects/Site.md': PROJECT });
 });
 
 describe('e2e: completion lifecycle', () => {
@@ -154,7 +189,7 @@ describe('e2e: completion lifecycle', () => {
 	it('uncomplete restores the line byte-for-byte and cleans log + journal', async () => {
 		const before = h.fileContent('Inbox.md');
 		await h.actions.completeTask('t-mom');
-		h.reindex();
+		await h.reindex();
 		await h.actions.uncompleteTask('t-mom');
 		expect(h.fileContent('Inbox.md')).toBe(before);
 		expect(h.plugin.persisted.log).toHaveLength(0);
@@ -192,7 +227,7 @@ describe('e2e: completion lifecycle', () => {
 		expect(h.fileContent(`${TODAY}.md`)).not.toContain('%%t-mom%%');
 		expect(h.fileContent(`${corrected}.md`)).toContain('%%t-mom%%');
 
-		h.reindex();
+		await h.reindex();
 		expect(h.task('t-mom')?.completedAt).toBe(h.plugin.persisted.log[0]!.completedAt);
 	});
 
@@ -237,10 +272,10 @@ describe('e2e: scheduling', () => {
 	it('schedule today/tomorrow/clear round-trips the markdown', async () => {
 		await h.actions.scheduleTask('t-mom', 'today');
 		expect(h.fileContent('Inbox.md')).toContain(`- [ ] Call mom ⏳ ${TODAY} ^t-mom`);
-		h.reindex();
+		await h.reindex();
 		await h.actions.scheduleTask('t-mom', 'tomorrow');
 		expect(h.fileContent('Inbox.md')).toContain(`- [ ] Call mom ⏳ ${TOMORROW} ^t-mom`);
-		h.reindex();
+		await h.reindex();
 		await h.actions.scheduleTask('t-mom', null);
 		expect(h.fileContent('Inbox.md')).toContain('- [ ] Call mom ^t-mom');
 	});
@@ -263,7 +298,7 @@ describe('e2e: scheduling', () => {
 	it('setTaskPriority round-trips the token', async () => {
 		await h.actions.setTaskPriority('t-mom', 1);
 		expect(h.fileContent('Inbox.md')).toContain('- [ ] Call mom !!! ^t-mom');
-		h.reindex();
+		await h.reindex();
 		expect(h.task('t-mom')?.priority).toBe(1);
 		await h.actions.setTaskPriority('t-mom', null);
 		expect(h.fileContent('Inbox.md')).toContain('- [ ] Call mom ^t-mom');
@@ -300,12 +335,70 @@ describe('e2e: checklist toggle', () => {
 		h.vault.seed({
 			'List.md': ['- [ ] Parent ^t-parent', '\t- [ ] Child ^t-child', ''].join('\n'),
 		});
-		h.reindex();
+		await h.reindex();
 		h.plugin.store.getState().patchTask('t-parent', {
 			checklist: [{ id: 't-child', title: 'Child', done: false, line: 1 }],
 		});
 		await h.actions.toggleChecklistItem('t-parent', 't-child');
 		expect(h.fileContent('List.md')).toContain('\t- [x] Child ^t-child');
+	});
+});
+
+describe('e2e: completions made outside the plugin', () => {
+	// Reproduces the real bug: a task checked off via Obsidian's own native
+	// checkbox (or hand-typed [x], or synced in from elsewhere) never runs
+	// completeTask, so nothing ever logged it — History silently missed it.
+	it('a native checkbox click (no ✅ stamp, no prior log entry) gets stamped and logged on reindex', async () => {
+		h.vault.seed({
+			'Notes.md': '- [ ] Water the plants ^t-native\n',
+		});
+		await h.reindex();
+		// Simulate clicking Obsidian's own checkbox: only the [ ] -> [x] flips.
+		h.vault.seed({
+			'Notes.md': '- [x] Water the plants ^t-native\n',
+		});
+		await h.reindex();
+
+		expect(h.fileContent('Notes.md')).toContain(`- [x] Water the plants ✅ ${TODAY} ^t-native`);
+		const entry = h.plugin.persisted.log.find((e) => e.taskId === 't-native');
+		expect(entry).toMatchObject({ taskId: 't-native', status: 'done' });
+		expect(h.fileContent(`${TODAY}.md`)).toContain('Water the plants');
+	});
+
+	it('an already-stamped external completion is logged using its own date, not today', async () => {
+		const past = addDaysISO(TODAY, -5);
+		h.vault.seed({
+			'Notes.md': `- [x] Old item ✅ ${past} ^t-old\n`,
+		});
+		await h.reindex();
+
+		const entry = h.plugin.persisted.log.find((e) => e.taskId === 't-old');
+		expect(todayISO(new Date(entry!.completedAt))).toBe(past);
+		expect(h.fileContent(`${past}.md`)).toContain('Old item');
+	});
+
+	it('does not re-log a completion the plugin already recorded itself', async () => {
+		await h.actions.completeTask('t-mom');
+		const before = h.plugin.persisted.log.length;
+		await h.reindex();
+		await h.reindex();
+		expect(h.plugin.persisted.log).toHaveLength(before);
+	});
+
+	it('a native checkbox click on a recurring task logs it (with a stamp) without auto-advancing', async () => {
+		// A native click just flips [ ] -> [x]; only completeTask() knows how to
+		// advance recurrence, so the line keeps its own (unadvanced) date —
+		// but it still earns the same ✅ stamp any other done task would.
+		h.vault.seed({
+			'Notes.md': `- [x] Feed the cat 🔁 every day ⏳ ${TODAY} ^t-cat\n`,
+		});
+		await h.reindex();
+
+		expect(h.fileContent('Notes.md')).toBe(
+			`- [x] Feed the cat 🔁 every day ⏳ ${TODAY} ✅ ${TODAY} ^t-cat\n`,
+		);
+		const entry = h.plugin.persisted.log.find((e) => e.taskId === 't-cat');
+		expect(entry).toMatchObject({ taskId: 't-cat', status: 'done' });
 	});
 });
 

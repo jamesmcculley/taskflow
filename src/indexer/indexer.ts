@@ -1,8 +1,10 @@
 import { TFile } from 'obsidian';
 import type { CachedMetadata, HeadingCache } from 'obsidian';
 import type TaskFlowPlugin from '../main';
-import { splitLines } from '../mutations/lineEdits';
-import { reconcileLog } from '../store/logReconcile';
+import { addCompletionStamp, splitLines } from '../mutations/lineEdits';
+import { findUnloggedCompletions, reconcileLog } from '../store/logReconcile';
+import type { ExternalCompletionCandidate } from '../store/logReconcile';
+import { todayISO } from '../store/selectors';
 import type { ProjectInfo, ProjectStatus, Task } from '../types';
 import { own } from '../utils';
 import { generateTaskId } from './ids';
@@ -179,6 +181,7 @@ export class TaskIndexer {
 		const existingIds = new Set(Object.keys(this.plugin.store.getState().tasks));
 		const tasks: Task[] = [];
 		const missingIds: { line: number; id: string; replaces?: string }[] = [];
+		const completionCandidates: ExternalCompletionCandidate[] = [];
 
 		// A checkbox nested under another checkbox (through any bullet levels)
 		// is a checklist item of that root task, not an independent task.
@@ -265,11 +268,26 @@ export class TaskIndexer {
 			};
 			tasks.push(task);
 			taskByLine.set(lineNo, task);
+			// A task already done/cancelled on this pass might be one the plugin
+			// never itself completed (a native checkbox click, hand-typed [x], an
+			// externally synced change) — flag it for the unlogged-completion
+			// check below, regardless of how it got here.
+			if (task.status !== 'todo') {
+				completionCandidates.push({
+					taskId: id,
+					title: task.title,
+					project: task.project,
+					status: task.status === 'cancelled' ? 'cancelled' : 'done',
+					stampDate: parsed.completedDate,
+				});
+			}
 		}
 
 		this.reconcilePersisted(tasks);
 		store.setFileIndex(file.path, tasks, project);
 		if (missingIds.length > 0) void this.assignBlockIds(file, missingIds);
+		const unlogged = findUnloggedCompletions(this.plugin.persisted.log, completionCandidates);
+		if (unlogged.length > 0) void this.recordUnloggedCompletions(file, unlogged);
 		return tasks.length;
 	}
 
@@ -328,6 +346,40 @@ export class TaskIndexer {
 			}
 			return lines.join(sep);
 		});
+	}
+
+	/**
+	 * Backfills History for completions the plugin's own actions never saw:
+	 * adds the missing ✅ stamp (batched into one write, same pattern as
+	 * assignBlockIds) for 'done' tasks that don't have one yet, then logs
+	 * every candidate — mirroring exactly what completing a task through the
+	 * plugin does, just triggered by noticing the change instead of causing it.
+	 */
+	private async recordUnloggedCompletions(
+		file: TFile,
+		items: ExternalCompletionCandidate[],
+	): Promise<void> {
+		const today = todayISO();
+		const needsStamp = new Set(
+			items.filter((i) => i.status === 'done' && i.stampDate === undefined).map((i) => i.taskId),
+		);
+		if (needsStamp.size > 0) {
+			await this.plugin.app.vault.process(file, (content) => {
+				const { lines, sep } = splitLines(content);
+				for (let i = 0; i < lines.length; i++) {
+					const raw = lines[i];
+					if (raw === undefined) continue;
+					const parsed = parseTaskLine(raw);
+					if (!parsed?.blockId || !needsStamp.has(parsed.blockId) || parsed.completedDate) continue;
+					lines[i] = addCompletionStamp(raw, today);
+				}
+				return lines.join(sep);
+			});
+		}
+		for (const item of items) {
+			await this.plugin.actions.recordExternalCompletion(item, item.stampDate ?? today);
+		}
+		this.log(`recovered ${items.length} unlogged completion(s) in ${file.path}`);
 	}
 
 	private log(message: string): void {
