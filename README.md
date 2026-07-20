@@ -133,6 +133,8 @@ When enabled (default), completing a task appends a journal line to that day's d
 
 Lines are plain list items (not checkboxes) so the indexer ignores them; the `%%id%%` comment is invisible in preview and lets uncompleting remove the exact line — even days later, from the right note. Folder and filename format come from the Daily Notes core plugin. The command **Sync today's completions to daily note** backfills on demand (deduplicated).
 
+Every path that removes a completion from History — unticking a task (however that happens), **Remove from History**, `reconcileLog`'s automatic pruning — also removes its journal line, so the two never drift apart going forward. If you're carrying drift from before that guarantee existed (an orphaned line in a daily note whose completion is no longer in History), run **Clean up daily-note lines with no matching History entry** once to repair it — it scans every note for TaskFlow's own journal-line shape and removes any whose task has no matching completion left, without touching unrelated `%%...%%` comments (Obsidian's own comment syntax).
+
 ## Interactions
 
 - **Click** selects a task; **double-click** (or Enter) opens its note at the line.

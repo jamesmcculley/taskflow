@@ -11,7 +11,7 @@ import { DailySync } from '../src/daily/DailySync';
 import { parseTaskLine } from '../src/indexer/tokenizer';
 import { TaskActions } from '../src/mutations/actions';
 import { addCompletionStamp, insertTaskLine } from '../src/mutations/lineEdits';
-import { findStampDrift, findUnloggedCompletions } from '../src/store/logReconcile';
+import { findStampDrift, findUnloggedCompletions, reconcileLog } from '../src/store/logReconcile';
 import type { ExternalCompletionCandidate } from '../src/store/logReconcile';
 import { addDaysISO, todayISO } from '../src/store/selectors';
 import { createTaskFlowStore } from '../src/store/store';
@@ -111,6 +111,20 @@ async function makeHarness(files: Record<string, string>): Promise<Harness> {
 			}
 		});
 		store.getState().setFileIndex(path, tasks, project);
+
+		// Mirror the real indexer: prune log entries for tasks that reverted to
+		// todo outside the plugin (a native uncheck), and remove their journal
+		// lines too — the exact drift the user reported.
+		const before = plugin.persisted.log;
+		const pruned = reconcileLog(before, tasks);
+		if (pruned) {
+			const stillPresent = new Set(pruned);
+			for (const entry of before) {
+				if (!stillPresent.has(entry) && entry.status === 'done') await dailySync.remove(entry);
+			}
+			plugin.persisted.log = pruned;
+			store.getState().setLog([...pruned]);
+		}
 
 		// Mirror the real indexer: notice done/cancelled tasks with no matching
 		// History entry (a native checkbox click, hand-typed [x], etc.) and log
@@ -434,6 +448,50 @@ describe('e2e: completions made outside the plugin', () => {
 		await h.reindex();
 		await h.reindex();
 		expect(h.plugin.persisted.log[0]!.completedAt).toBe(before);
+	});
+
+	it('unticking a completed task via a native checkbox removes History AND the journal line', async () => {
+		await h.actions.completeTask('t-mom'); // logged + journaled to TODAY's note
+		// Simulate a native uncheck: only the [x] -> [ ] flips, bypassing uncompleteTask.
+		const reverted = h.fileContent('Inbox.md').replace('[x]', '[ ]').replace(/\s*✅ \S+/, '');
+		h.vault.seed({ 'Inbox.md': reverted });
+		await h.reindex();
+
+		expect(h.plugin.persisted.log.find((e) => e.taskId === 't-mom')).toBeUndefined();
+		expect(h.fileContent(`${TODAY}.md`)).not.toContain('%%t-mom%%');
+	});
+
+	it('removeLogEntry (History → Remove) also removes the journal line', async () => {
+		await h.actions.completeTask('t-mom');
+		const entry = h.plugin.persisted.log[0]!;
+		await h.actions.removeLogEntry(entry.taskId, entry.completedAt);
+		expect(h.plugin.persisted.log).toHaveLength(0);
+		expect(h.fileContent(`${TODAY}.md`)).not.toContain('%%t-mom%%');
+	});
+
+	it('cleanOrphanedJournalLines repairs pre-existing drift without touching valid lines', async () => {
+		await h.actions.completeTask('t-mom'); // valid: still logged
+		await h.actions.completeTask('t-bill'); // will become orphaned below
+
+		// Simulate drift that predates the fix: strip t-bill's log entry
+		// directly, leaving its journal line behind (what the old, buggy
+		// reconcilePersisted path used to do).
+		h.plugin.persisted.log = h.plugin.persisted.log.filter((e) => e.taskId !== 't-bill');
+		h.plugin.store.getState().setLog([...h.plugin.persisted.log]);
+		expect(h.fileContent(`${TODAY}.md`)).toContain('%%t-bill%%');
+
+		await h.plugin.dailySync.cleanOrphanedJournalLines();
+
+		expect(h.fileContent(`${TODAY}.md`)).not.toContain('%%t-bill%%');
+		expect(h.fileContent(`${TODAY}.md`)).toContain('%%t-mom%%'); // untouched
+	});
+
+	it('cleanOrphanedJournalLines never touches an unrelated %%…%% comment', async () => {
+		h.vault.seed({
+			'Journal.md': ['# Notes', '', '%% a private comment %%', ''].join('\n'),
+		});
+		await h.plugin.dailySync.cleanOrphanedJournalLines();
+		expect(h.fileContent('Journal.md')).toContain('%% a private comment %%');
 	});
 });
 

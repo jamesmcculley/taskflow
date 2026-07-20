@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+	extractJournalTaskId,
 	formatCompletionLine,
 	hasCompletionLine,
 	removeCompletionLine,
@@ -57,6 +58,27 @@ describe('hasCompletionLine', () => {
 		expect(hasCompletionLine(`# D\r\n${line}\r\n`, line)).toBe(true);
 		expect(hasCompletionLine(`# D\n${line}\n`, line)).toBe(true);
 		expect(hasCompletionLine('# D\n', line)).toBe(false);
+	});
+});
+
+describe('extractJournalTaskId', () => {
+	it('extracts the marker from a real journal line', () => {
+		expect(extractJournalTaskId('- ✅ 09:05 Pay bill %%t-aaa%%')).toBe('t-aaa');
+		expect(extractJournalTaskId('- ✅ 14:32 Send email ([[Site]]) %%t-bbb%%')).toBe('t-bbb');
+	});
+
+	it('tolerates CRLF', () => {
+		expect(extractJournalTaskId('- ✅ 09:05 Pay bill %%t-aaa%%\r')).toBe('t-aaa');
+	});
+
+	it('does not match an unrelated %%…%% comment — that syntax is Obsidian-wide, not ours', () => {
+		expect(extractJournalTaskId('%% just a regular comment %%')).toBeUndefined();
+		expect(extractJournalTaskId('- A normal list item %%note to self%%')).toBeUndefined();
+	});
+
+	it('ignores non-journal lines entirely', () => {
+		expect(extractJournalTaskId('# Heading')).toBeUndefined();
+		expect(extractJournalTaskId('- [ ] A real task ^t-abc123')).toBeUndefined();
 	});
 });
 

@@ -33,3 +33,15 @@ export function hasCompletionLine(content: string, line: string): boolean {
 	// Tolerate CRLF files: compare with trailing \r stripped.
 	return content.split('\n').some((l) => (l.endsWith('\r') ? l.slice(0, -1) : l) === line);
 }
+
+// Matches TaskFlow's own journal-line shape specifically (bullet, ✅, time,
+// …, trailing marker) rather than a bare `%%…%%`, which is Obsidian's own
+// general-purpose comment syntax and could appear in a note for unrelated
+// reasons — a loose match would risk deleting someone else's comment.
+const JOURNAL_LINE_RE = /^-\s+✅\s+\d{2}:\d{2}\s+.*%%([^%]+)%%\s*$/u;
+
+/** The taskId marker on a journal line, if it's one of ours. */
+export function extractJournalTaskId(line: string): string | undefined {
+	const trimmed = line.endsWith('\r') ? line.slice(0, -1) : line;
+	return JOURNAL_LINE_RE.exec(trimmed)?.[1];
+}

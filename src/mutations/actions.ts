@@ -252,9 +252,10 @@ export class TaskActions {
 		const log = this.plugin.persisted.log;
 		const idx = log.findIndex((e) => e.taskId === taskId && e.completedAt === completedAt);
 		if (idx === -1) return;
-		log.splice(idx, 1);
+		const [removed] = log.splice(idx, 1);
 		this.plugin.store.getState().setLog([...log]);
 		await this.plugin.savePersisted();
+		if (removed?.status === 'done') await this.plugin.dailySync.remove(removed);
 	}
 
 	/** Appends a completion-log entry and persists; returns the timestamp. */

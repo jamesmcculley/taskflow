@@ -296,13 +296,23 @@ export class TaskIndexer {
 	/**
 	 * Keeps the completion log/timestamps consistent with markdown state, so
 	 * completions undone outside the plugin (e.g. unticking the checkbox in
-	 * the note) disappear from the History.
+	 * the note) disappear from the History — and from the daily journal too,
+	 * which used to be left behind here (the same "only our own actions know
+	 * to update the journal" gap that findUnloggedCompletions closed for
+	 * completions, but for the removal side).
 	 */
 	private reconcilePersisted(tasks: Task[]): void {
 		const persisted = this.plugin.persisted;
 		let changed = false;
-		const pruned = reconcileLog(persisted.log, tasks);
+		const before = persisted.log;
+		const pruned = reconcileLog(before, tasks);
 		if (pruned) {
+			const stillPresent = new Set(pruned);
+			for (const entry of before) {
+				if (!stillPresent.has(entry) && entry.status === 'done') {
+					void this.plugin.dailySync.remove(entry);
+				}
+			}
 			persisted.log = pruned;
 			this.plugin.store.getState().setLog([...pruned]);
 			changed = true;

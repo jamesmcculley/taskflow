@@ -48,6 +48,11 @@ export default class TaskFlowPlugin extends Plugin {
 			callback: () => void this.dailySync.backfillToday(),
 		});
 		this.addCommand({
+			id: 'clean-orphaned-journal-lines',
+			name: 'Clean up daily-note lines with no matching History entry',
+			callback: () => void this.dailySync.cleanOrphanedJournalLines(),
+		});
+		this.addCommand({
 			id: 'quick-find',
 			name: 'Quick search',
 			callback: () => new QuickFindModal(this).open(),

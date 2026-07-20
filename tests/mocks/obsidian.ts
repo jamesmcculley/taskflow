@@ -65,6 +65,10 @@ export class FakeVault {
 		return this.files.has(path) ? this.handle(path) : null;
 	}
 
+	getMarkdownFiles(): TFile[] {
+		return [...this.files.keys()].filter((p) => p.endsWith('.md')).map((p) => this.handle(p));
+	}
+
 	async process(file: TFile, fn: (content: string) => string): Promise<string> {
 		const next = fn(this.files.get(file.path) ?? '');
 		this.files.set(file.path, next);

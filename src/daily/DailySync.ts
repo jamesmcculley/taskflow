@@ -1,8 +1,13 @@
 import { Notice, TFile, moment, normalizePath } from 'obsidian';
 import type TaskFlowPlugin from '../main';
-import { insertTaskLine } from '../mutations/lineEdits';
+import { insertTaskLine, splitLines } from '../mutations/lineEdits';
 import type { CompletionEntry } from '../types';
-import { formatCompletionLine, hasCompletionLine, removeCompletionLine } from './dailyLog';
+import {
+	extractJournalTaskId,
+	formatCompletionLine,
+	hasCompletionLine,
+	removeCompletionLine,
+} from './dailyLog';
 
 interface DailyNotesOptions {
 	folder?: string;
@@ -112,6 +117,52 @@ export class DailySync {
 			if (appended) added++;
 		}
 		new Notice(`TaskFlow: synced ${added} completion${added === 1 ? '' : 's'} to the daily note.`);
+	}
+
+	/**
+	 * One-time repair for drift that accumulated before every code path that
+	 * removes a completion also learned to remove its journal line (fixed
+	 * for reconcilePersisted's pruning and removeLogEntry, but that only
+	 * prevents new drift — this cleans up whatever's already sitting in the
+	 * vault from before the fix). Scans every note for lines in TaskFlow's
+	 * own journal shape and removes any whose taskId has no 'done' entry
+	 * anywhere in the log. Coarse by design: checking "does this taskId have
+	 * a completion at all" rather than matching the entry's exact day, since
+	 * reverse-parsing an arbitrary daily-note date format back out of a
+	 * filename isn't reliable — good enough for the common case (a task
+	 * isn't usually completed, uncompleted, and recompleted across
+	 * different days for the same non-recurring line).
+	 */
+	async cleanOrphanedJournalLines(): Promise<void> {
+		const loggedTaskIds = new Set(
+			this.plugin.persisted.log.filter((e) => e.status === 'done').map((e) => e.taskId),
+		);
+		let removedCount = 0;
+		let filesTouched = 0;
+		for (const file of this.plugin.app.vault.getMarkdownFiles()) {
+			const snapshot = await this.plugin.app.vault.cachedRead(file);
+			if (!snapshot.includes('%%')) continue; // cheap pre-filter; real check runs on fresh content below
+			let fileRemoved = 0;
+			await this.plugin.app.vault.process(file, (content) => {
+				const { lines, sep } = splitLines(content);
+				const kept = lines.filter((line) => {
+					const taskId = extractJournalTaskId(line);
+					if (taskId === undefined || loggedTaskIds.has(taskId)) return true;
+					fileRemoved++;
+					return false;
+				});
+				return fileRemoved > 0 ? kept.join(sep) : content;
+			});
+			if (fileRemoved > 0) {
+				removedCount += fileRemoved;
+				filesTouched++;
+			}
+		}
+		new Notice(
+			removedCount > 0
+				? `TaskFlow: removed ${removedCount} orphaned journal line${removedCount === 1 ? '' : 's'} across ${filesTouched} note${filesTouched === 1 ? '' : 's'}.`
+				: 'TaskFlow: no orphaned journal lines found — daily notes already match History.',
+		);
 	}
 
 	private async appendLine(path: string, line: string, skipIfPresent = false): Promise<boolean> {
