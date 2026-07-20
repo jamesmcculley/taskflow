@@ -1,5 +1,7 @@
 # Decisions
 
+- **2026-07-20** — `taskflow: false` frontmatter now also accepts the quoted string form (`taskflow: "false"`, any case, plus `"ignore"`/`"off"`/`"no"`). Obsidian's property UI writes a quoted string when the field is typed as a "Text" property, which YAML parses as a string rather than a boolean — the original check only matched the boolean, so a note excluded through the property UI silently stayed indexed. Found via a real vault note ("Test Note.md") where this happened.
+
 - **2026-07-20** — Checkbox exclusion at three scopes: `#notask` tag per line, `taskflow: false|ignore|off` frontmatter per note, and an excluded-folders setting (prefix match on path segments; changing it triggers a full rescan that also evicts newly excluded files from the index). Exclusion happens before ID assignment, so excluded checkboxes never get `^t-` refs appended.
 
 - **2026-07-19** — M7: priority is a standalone `!!`/`!!!` token (a trailing "!" in a title never counts); priority sorts above manual order, and a scheduled time (optional `HH:mm` after ⏳'s date) sorts within the day — compared by codepoint, not localeCompare, whose collation broke the untimed-last sentinel. Capture's recurrence extraction bounds the phrase with a vocabulary whitelist before rrule validates it, because fromText silently ignores trailing junk. Backdated completions timestamp at noon local on the chosen day. Board view is wide-layout only; dragging between columns rewrites the task under the target heading (the no-heading column inserts above the first heading).

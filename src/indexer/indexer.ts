@@ -23,10 +23,17 @@ export function isExcludedPath(path: string, folders: string[]): boolean {
 	return false;
 }
 
-/** True when frontmatter opts the whole note out (`taskflow: false` or `ignore`). */
+/**
+ * True when frontmatter opts the whole note out (`taskflow: false`). Accepts
+ * the boolean and the string forms alike — Obsidian's property UI quotes
+ * values typed into a "Text" field (`taskflow: "false"`), which YAML then
+ * parses as a string, not the boolean.
+ */
 export function isTaskflowDisabled(frontmatter: Record<string, unknown> | undefined): boolean {
 	const value = frontmatter?.taskflow;
-	return value === false || value === 'ignore' || value === 'off';
+	if (value === false) return true;
+	if (typeof value === 'string') return ['false', 'ignore', 'off', 'no'].includes(value.toLowerCase());
+	return false;
 }
 
 function normalizeProjectStatus(value: unknown): ProjectStatus {

@@ -23,6 +23,14 @@ describe('isTaskflowDisabled', () => {
 		expect(isTaskflowDisabled({ taskflow: 'off' })).toBe(true);
 	});
 
+	it('accepts the quoted string form the property UI writes for a Text field', () => {
+		// Obsidian's "Text" property type quotes the value, so YAML parses it
+		// as a string rather than the boolean — must be treated the same way.
+		expect(isTaskflowDisabled({ taskflow: 'false' })).toBe(true);
+		expect(isTaskflowDisabled({ taskflow: 'FALSE' })).toBe(true);
+		expect(isTaskflowDisabled({ taskflow: 'No' })).toBe(true);
+	});
+
 	it('anything else keeps the note indexed', () => {
 		expect(isTaskflowDisabled(undefined)).toBe(false);
 		expect(isTaskflowDisabled({})).toBe(false);
