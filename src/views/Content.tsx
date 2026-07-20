@@ -22,6 +22,7 @@ import { LIST_META } from './components/Sidebar';
 import { ObsidianIcon } from './components/ObsidianIcon';
 import { TaskList, TaskRows } from './components/TaskList';
 import { BoardView } from './BoardView';
+import { DateSuggestModal } from './DateSuggestModal';
 import { ReviewView } from './ReviewView';
 import { StatsView } from './StatsView';
 import type { TaskFlowView } from './TaskFlowView';
@@ -134,6 +135,18 @@ function HistoryEntry({ entry, plugin }: { entry: CompletionEntry; plugin: TaskF
 			onContextMenu={(e) => {
 				e.preventDefault();
 				const menu = new Menu();
+				if (entry.status === 'done') {
+					menu.addItem((i) =>
+						i
+							.setTitle('Edit date…')
+							.setIcon('calendar-cog')
+							.onClick(() => {
+								new DateSuggestModal(plugin.app, 'Completed on', false, (date) => {
+									if (date) void plugin.actions.editCompletionDate(entry.taskId, entry.completedAt, date);
+								}).open();
+							}),
+					);
+				}
 				menu.addItem((i) =>
 					i
 						.setTitle('Remove from History')

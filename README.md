@@ -83,7 +83,7 @@ Six fixed lists, then Areas with their projects (progress pies included):
 - **Upcoming** — tasks dated after today, grouped by day: Tomorrow, weekday names this week, then `Jul 25`.
 - **Whenever** — open tasks in active projects with no scheduled date.
 - **Someday** — tasks in `status: someday` projects.
-- **History** — completed/cancelled tasks from the index completion log, grouped by day, newest first.
+- **History** — completed/cancelled tasks from the index completion log, grouped by day, newest first. Right-click any completion for **Edit date…** if it was logged on the wrong day — it corrects the log entry, moves its daily-note journal line to the right day, and (if the task's markdown line still shows that ✅ stamp) corrects the stamp too.
 - **Projects** — under collapsible Area headers (`area: <name>` frontmatter) or standalone; each project view groups tasks by heading, with task-level Someday items dimmed at the bottom.
 - **Areas are clickable** — an area header opens a view of all its projects' open tasks, grouped by project.
 - **Quick search** — the search row at the top of the sidebar (or the `Quick search` command): fuzzy search across lists, filters, areas, projects, and open tasks; choosing a task jumps to its context and selects it.

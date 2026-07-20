@@ -94,6 +94,7 @@ function makeHarness(files: Record<string, string>): Harness {
 				someday: parsed.tags.includes('someday') || undefined,
 				priority: parsed.priority,
 				scheduledTime: parsed.scheduledTime,
+				completedAt: plugin.persisted.completedAt[parsed.blockId],
 			});
 		});
 		store.getState().setFileIndex(path, tasks, project);
@@ -177,6 +178,51 @@ describe('e2e: completion lifecycle', () => {
 		expect(h.fileContent(`${TODAY}.md`)).toBe('');
 		const entryDay = todayISO(new Date(h.plugin.persisted.log[0]?.completedAt ?? ''));
 		expect(entryDay).toBe(asOf);
+	});
+
+	it('editCompletionDate corrects the ✅ stamp, log day, and journal placement', async () => {
+		await h.actions.completeTask('t-mom');
+		const original = h.plugin.persisted.log[0]!;
+		const corrected = addDaysISO(TODAY, -2);
+		await h.actions.editCompletionDate('t-mom', original.completedAt, corrected);
+
+		expect(h.fileContent('Inbox.md')).toContain(`- [x] Call mom ✅ ${corrected} ^t-mom`);
+		expect(h.plugin.persisted.log).toHaveLength(1);
+		expect(todayISO(new Date(h.plugin.persisted.log[0]!.completedAt))).toBe(corrected);
+		expect(h.fileContent(`${TODAY}.md`)).not.toContain('%%t-mom%%');
+		expect(h.fileContent(`${corrected}.md`)).toContain('%%t-mom%%');
+
+		h.reindex();
+		expect(h.task('t-mom')?.completedAt).toBe(h.plugin.persisted.log[0]!.completedAt);
+	});
+
+	it('editCompletionDate on a historical (non-live) entry only touches the log + journal', async () => {
+		// Complete the recurring task twice; its line never keeps a ✅ stamp
+		// (recurrence rewrites it to the next occurrence), so both completions
+		// are purely historical from the moment they're recorded.
+		await h.actions.completeTask('t-mail');
+		const first = h.plugin.persisted.log[0]!;
+		const before = h.fileContent('Projects/Site.md');
+		const corrected = addDaysISO(TODAY, -10);
+
+		await h.actions.editCompletionDate('t-mail', first.completedAt, corrected);
+
+		expect(h.fileContent('Projects/Site.md')).toBe(before); // line untouched
+		expect(todayISO(new Date(h.plugin.persisted.log[0]!.completedAt))).toBe(corrected);
+		expect(h.fileContent(`${corrected}.md`)).toContain('Weekly email');
+		expect(h.fileContent(`${TODAY}.md`)).not.toContain('Weekly email');
+	});
+
+	it('editCompletionDate ignores cancelled entries and unknown entries', async () => {
+		await h.actions.cancelTask('t-mom');
+		const cancelled = h.plugin.persisted.log[0]!;
+		const before = [...h.plugin.persisted.log];
+		await h.actions.editCompletionDate('t-mom', cancelled.completedAt, addDaysISO(TODAY, -1));
+		expect(h.plugin.persisted.log).toEqual(before);
+
+		const before2 = [...h.plugin.persisted.log];
+		await h.actions.editCompletionDate('t-nope', new Date().toISOString(), TODAY);
+		expect(h.plugin.persisted.log).toEqual(before2);
 	});
 
 	it('cancel marks [-] with an index-only timestamp and no journal line', async () => {

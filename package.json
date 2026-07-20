@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-taskflow",
-	"version": "0.11.0",
+	"version": "0.12.0",
 	"description": "Manage tasks and projects in plain markdown: areas, scheduling, priorities, recurrence, pinned filters, daily-note sync, stats, and weekly reviews.",
 	"main": "main.js",
 	"type": "module",

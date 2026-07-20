@@ -1,7 +1,7 @@
 import { Notice, TFile, moment, normalizePath } from 'obsidian';
 import type TaskFlowPlugin from '../main';
 import { insertTaskLine } from '../mutations/lineEdits';
-import type { CompletionEntry, Task } from '../types';
+import type { CompletionEntry } from '../types';
 import { formatCompletionLine, hasCompletionLine, removeCompletionLine } from './dailyLog';
 
 interface DailyNotesOptions {
@@ -50,17 +50,28 @@ export class DailySync {
 		return normalizePath(folder === '' ? `${name}.md` : `${folder}/${name}.md`);
 	}
 
-	private projectName(task: Task): string | undefined {
-		if (task.project === undefined) return undefined;
+	private projectName(projectPath: string | undefined): string | undefined {
+		if (projectPath === undefined) return undefined;
 		return (
-			this.plugin.store.getState().projects[task.project]?.name ??
-			task.project.split('/').pop()?.replace(/\.md$/, '')
+			this.plugin.store.getState().projects[projectPath]?.name ??
+			projectPath.split('/').pop()?.replace(/\.md$/, '')
 		);
 	}
 
-	async record(task: Task, completedAt: string): Promise<void> {
+	/**
+	 * Sourced from raw fields (not a live Task) so a historical completion —
+	 * whose task line has since moved on, e.g. a recurring task's earlier
+	 * occurrence, or one being date-corrected after the fact — can still be
+	 * journaled correctly.
+	 */
+	async record(
+		taskId: string,
+		title: string,
+		projectPath: string | undefined,
+		completedAt: string,
+	): Promise<void> {
 		if (!this.enabled) return;
-		const line = formatCompletionLine(task.id, task.title, this.projectName(task), completedAt);
+		const line = formatCompletionLine(taskId, title, this.projectName(projectPath), completedAt);
 		await this.appendLine(this.notePathFor(completedAt), line);
 	}
 
@@ -91,11 +102,12 @@ export class DailySync {
 		}
 		let added = 0;
 		for (const entry of entries) {
-			const projectName = entry.project
-				? (this.plugin.store.getState().projects[entry.project]?.name ??
-					entry.project.split('/').pop()?.replace(/\.md$/, ''))
-				: undefined;
-			const line = formatCompletionLine(entry.taskId, entry.title, projectName, entry.completedAt);
+			const line = formatCompletionLine(
+				entry.taskId,
+				entry.title,
+				this.projectName(entry.project),
+				entry.completedAt,
+			);
 			const appended = await this.appendLine(this.notePathFor(entry.completedAt), line, true);
 			if (appended) added++;
 		}

@@ -276,8 +276,46 @@ export class TaskActions {
 		});
 		this.plugin.store.getState().setLog([...this.plugin.persisted.log]);
 		await this.plugin.savePersisted();
-		if (status === 'done') await this.plugin.dailySync.record(task, completedAt);
+		if (status === 'done') {
+			await this.plugin.dailySync.record(task.id, task.title, task.project, completedAt);
+		}
 		return completedAt;
+	}
+
+	/**
+	 * Corrects the date of one History entry (identified the same way
+	 * removeLogEntry finds it: taskId + its current completedAt). If this
+	 * entry is still the task's live completion — its markdown line still
+	 * shows the ✅ stamp — that stamp is corrected too; a historical entry
+	 * whose line has since moved on (a recurring task's earlier occurrence)
+	 * only gets its log + daily-journal date corrected.
+	 */
+	async editCompletionDate(taskId: string, oldCompletedAt: string, newDateISO: string): Promise<void> {
+		const log = this.plugin.persisted.log;
+		const idx = log.findIndex((e) => e.taskId === taskId && e.completedAt === oldCompletedAt);
+		const entry = idx === -1 ? undefined : log[idx];
+		if (!entry) {
+			new Notice('TaskFlow: history entry not found.');
+			return;
+		}
+		if (entry.status !== 'done') return; // Only completions have a ✅ date to correct.
+
+		const task = this.getTask(taskId);
+		const isLiveCompletion = task?.status === 'done' && task.completedAt === entry.completedAt;
+		if (isLiveCompletion && task) {
+			await this.editTaskLine(task, (l) => addCompletionStamp(l, newDateISO));
+		}
+
+		await this.plugin.dailySync.remove(entry);
+		const newCompletedAt = noonISO(newDateISO);
+		log[idx] = { ...entry, completedAt: newCompletedAt };
+		this.plugin.store.getState().setLog([...log]);
+		if (isLiveCompletion) {
+			this.plugin.persisted.completedAt[taskId] = newCompletedAt;
+			this.plugin.store.getState().patchTask(taskId, { completedAt: newCompletedAt });
+		}
+		await this.plugin.savePersisted();
+		await this.plugin.dailySync.record(taskId, entry.title, entry.project, newCompletedAt);
 	}
 
 	/** Creates or updates a pinned filter. */
