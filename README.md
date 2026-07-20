@@ -4,6 +4,25 @@ An Obsidian plugin that turns your vault into a full task and project manager. T
 
 **Markdown is the source of truth.** The plugin's persisted index only owns manual sort order, completion history, and recurrence bookkeeping — deleting `data.json` loses nothing else.
 
+## Quick install
+
+No build tools needed — the plugin is three files in your vault:
+
+1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/jamesmcculley/taskflow/releases/latest) into `<your vault>/.obsidian/plugins/taskflow/` (create the folder). Or from a terminal:
+
+   ```bash
+   VAULT="/path/to/your/vault"
+   mkdir -p "$VAULT/.obsidian/plugins/taskflow" && cd "$VAULT/.obsidian/plugins/taskflow"
+   curl -LO https://github.com/jamesmcculley/taskflow/releases/latest/download/main.js
+   curl -LO https://github.com/jamesmcculley/taskflow/releases/latest/download/manifest.json
+   curl -LO https://github.com/jamesmcculley/taskflow/releases/latest/download/styles.css
+   ```
+
+2. Open the vault in Obsidian → **Settings → Community plugins** → turn off Restricted mode → enable **TaskFlow**. (Restart Obsidian first if it was already open.)
+3. Run the command **TaskFlow: Open sidebar** (Cmd/Ctrl+P).
+
+To update, re-download the same three files from the newest release and reload Obsidian.
+
 ## Conventions
 
 Tasks are checkbox lines inside notes:
