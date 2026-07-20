@@ -1,0 +1,8 @@
+node_modules/
+main.js
+data.json
+.env
+
+# The live test vault is disposable; only the seed content is versioned.
+test-vault/*
+!test-vault/seed/

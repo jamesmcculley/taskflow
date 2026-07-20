@@ -1,0 +1,9 @@
+{
+	"id": "taskflow",
+	"name": "TaskFlow",
+	"version": "0.9.3",
+	"minAppVersion": "1.5.0",
+	"description": "Opinionated task and project management on top of plain markdown: projects, areas, scheduling, recurrence, and reviews.",
+	"author": "James McCulley",
+	"isDesktopOnly": false
+}
