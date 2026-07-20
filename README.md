@@ -49,6 +49,12 @@ Tasks are checkbox lines inside notes:
 
 A checkbox indented under another checkbox is a **checklist item** of that task, not an independent task: it shows as an `n/m` progress chip and expands inline when the task is selected. Recurrence supports both fixed patterns (`🔁 every week` — stays aligned to the schedule) and after-completion patterns (`🔁 every week after done` — next occurrence counts from the day you complete it).
 
+**Excluding checkboxes** that aren't tasks (packing lists, templates, meeting notes):
+
+- One line: add `#notask` to the checkbox line — it's never indexed and never gets an ID.
+- One note: add `taskflow: false` (or `ignore`) to the frontmatter.
+- Whole folders: list them under **Settings → Excluded folders** (e.g. `Templates`).
+
 Project membership: a task belongs to the note it lives in when that note has `type: project` frontmatter (`status: active | someday | done`). Tasks anywhere else — `Inbox.md`, daily notes, ordinary notes — are Inbox items. The markdown heading enclosing a task is its section heading.
 
 ## Views (the sidebar)

@@ -145,6 +145,11 @@ export default class TaskFlowPlugin extends Plugin {
 		});
 	}
 
+	/** Full re-index — used after settings changes that alter what gets indexed. */
+	async rescan(): Promise<void> {
+		await this.indexer.fullScan();
+	}
+
 	private async exportHistoryCsv(): Promise<void> {
 		const csv = buildHistoryCsv(this.persisted.log, this.store.getState().projects);
 		const path = 'TaskFlow History.csv';

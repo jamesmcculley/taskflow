@@ -9,12 +9,15 @@ export interface TaskFlowSettings {
 	dailySync: boolean;
 	/** Heading (without #s) the journal lines go under. */
 	dailySyncHeading: string;
+	/** Vault folders whose checkboxes are never indexed as tasks. */
+	excludedFolders: string[];
 }
 
 export const DEFAULT_SETTINGS: TaskFlowSettings = {
 	debugPerf: false,
 	dailySync: true,
 	dailySyncHeading: 'Completed',
+	excludedFolders: [],
 };
 
 /**
@@ -74,6 +77,24 @@ export class TaskFlowSettingTab extends PluginSettingTab {
 						this.plugin.persisted.settings.dailySyncHeading =
 							value.replace(/^#+\s*/, '').trim() || 'Completed';
 						await this.plugin.savePersisted();
+					}),
+			);
+		new Setting(containerEl)
+			.setName('Excluded folders')
+			.setDesc(
+				'One folder per line. Checkboxes in these folders are never indexed as tasks and never get IDs.',
+			)
+			.addTextArea((text) =>
+				text
+					.setPlaceholder('Templates\nArchive')
+					.setValue(this.plugin.persisted.settings.excludedFolders.join('\n'))
+					.onChange(async (value) => {
+						this.plugin.persisted.settings.excludedFolders = value
+							.split('\n')
+							.map((s) => s.trim())
+							.filter((s) => s !== '');
+						await this.plugin.savePersisted();
+						await this.plugin.rescan();
 					}),
 			);
 		new Setting(containerEl)

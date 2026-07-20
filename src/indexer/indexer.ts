@@ -10,6 +10,25 @@ import { appendBlockId, parseTaskLine } from './tokenizer';
 
 const DEBOUNCE_MS = 250;
 
+/** Tag that opts a single checkbox line out of task indexing entirely. */
+export const NO_TASK_TAG = 'notask';
+
+/** True when `path` is inside any of the configured excluded folders. */
+export function isExcludedPath(path: string, folders: string[]): boolean {
+	for (const raw of folders) {
+		const folder = raw.trim().replace(/^\/+|\/+$/g, '');
+		if (folder === '') continue;
+		if (path === folder || path.startsWith(`${folder}/`)) return true;
+	}
+	return false;
+}
+
+/** True when frontmatter opts the whole note out (`taskflow: false` or `ignore`). */
+export function isTaskflowDisabled(frontmatter: Record<string, unknown> | undefined): boolean {
+	const value = frontmatter?.taskflow;
+	return value === false || value === 'ignore' || value === 'off';
+}
+
 function normalizeProjectStatus(value: unknown): ProjectStatus {
 	return value === 'someday' || value === 'done' ? value : 'active';
 }
@@ -73,6 +92,10 @@ export class TaskIndexer {
 			files.map(async (file) => {
 				const cache = this.plugin.app.metadataCache.getFileCache(file);
 				if (!cache) return;
+				if (this.isFileExcluded(file.path, cache)) {
+					this.plugin.store.getState().removeFile(file.path);
+					return;
+				}
 				const hasTasks = cache.listItems?.some((li) => li.task !== undefined) ?? false;
 				const isProject = cache.frontmatter?.type === 'project';
 				if (!hasTasks && !isProject) return;
@@ -115,9 +138,20 @@ export class TaskIndexer {
 		this.log(`reindex ${file.path}: ${count} tasks in ${(performance.now() - t0).toFixed(1)}ms`);
 	}
 
+	private isFileExcluded(path: string, cache: CachedMetadata): boolean {
+		return (
+			isExcludedPath(path, this.plugin.persisted.settings.excludedFolders) ||
+			isTaskflowDisabled(cache.frontmatter)
+		);
+	}
+
 	/** Parses one file into tasks and pushes them into the store. Returns the task count. */
 	private indexFile(file: TFile, content: string, cache: CachedMetadata): number {
 		const store = this.plugin.store.getState();
+		if (this.isFileExcluded(file.path, cache)) {
+			store.removeFile(file.path);
+			return 0;
+		}
 		const fm = cache.frontmatter;
 		const isProject = fm?.type === 'project';
 		const project: ProjectInfo | null = isProject
@@ -168,6 +202,8 @@ export class TaskIndexer {
 			if (raw === undefined) continue;
 			const parsed = parseTaskLine(raw);
 			if (!parsed) continue;
+			// #notask opts this checkbox out entirely — no task, no ID assigned.
+			if (parsed.tags.includes(NO_TASK_TAG)) continue;
 			let id = parsed.blockId ?? li.id;
 			if (id) {
 				// Copy-pasted lines can carry duplicate IDs (within this file or
