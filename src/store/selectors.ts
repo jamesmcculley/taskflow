@@ -79,10 +79,24 @@ export function isSomedayTask(t: Task): boolean {
 	return t.someday === true || t.projectStatus === 'someday';
 }
 
-/** Open tasks that live outside any project note. */
+/**
+ * Open, unfiled, undated tasks — Inbox is a triage holding area, not a
+ * permanent home. Scheduling a task (Today/Upcoming) or filing it into a
+ * project/Someday moves it out automatically; clearing the date or removing
+ * it from a project drops it back in, so nothing gets lost. Completed and
+ * cancelled tasks never return to Inbox on edit (they're excluded by
+ * status, independent of date/project), matching Someday/Whenever/Upcoming.
+ */
 export function selectInboxTasks(tasks: Record<string, Task>): Task[] {
 	return Object.values(tasks)
-		.filter((t) => t.status === 'todo' && t.project === undefined && !isSomedayTask(t))
+		.filter(
+			(t) =>
+				t.status === 'todo' &&
+				t.project === undefined &&
+				!isSomedayTask(t) &&
+				t.scheduled === undefined &&
+				t.due === undefined,
+		)
 		.sort(compareTasks);
 }
 

@@ -78,7 +78,7 @@ Project membership: a task belongs to the note it lives in when that note has `t
 
 Six fixed lists, then Areas with their projects (progress pies included):
 
-- **Inbox** — open tasks outside any project note.
+- **Inbox** — a triage holding area: open tasks outside any project note that have no scheduled or due date. It's not tied to a location — scheduling a task (giving it a date, which puts it in Today/Upcoming) or filing it into a project/Someday removes it from Inbox automatically; clearing that date or removing it from a project puts it right back, so nothing gets lost by editing. Completing or cancelling it removes it for good — it won't reappear on a later edit unless you mark it undone.
 - **Today** — open tasks scheduled or due today or earlier; overdue items surface at the top, flagged.
 - **Upcoming** — tasks dated after today, grouped by day: Tomorrow, weekday names this week, then `Jul 25`.
 - **Whenever** — open tasks in active projects with no scheduled date.
@@ -91,6 +91,7 @@ Six fixed lists, then Areas with their projects (progress pies included):
 - **Stats** — completion stat tiles (today / week / month / all time), streak tracking, and a scrollable 26-week heatmap built from the completion log. The heatmap ramp derives from your theme's accent color, so it works in any light or dark theme.
 - **Review** — a guided weekly review (also the command `Start weekly review`): Inbox → overdue → every active project (ordered by area, then name) → Someday, one step at a time. Lists are live, so processing an item removes it from the step; empty groups are skipped; finishing records the review date, shown on the start screen.
 - The sidebar footer shows the running plugin version with a **reload button** beside it (disable + re-enable, re-reading `main.js` from disk).
+- Every task shows a **source chip** (`#Note Name`) naming the note it lives in — useful in Inbox, Upcoming, Whenever, and other views that mix tasks from many files. It's computed from the file path, not written to markdown, and it's hidden inside a project's own view where it would just repeat the page you're already on.
 
 In the narrow right sidebar the nav collapses behind a menu button; opened as a workspace tab (drag the view to the main area) it becomes a two-pane sidebar + content layout.
 

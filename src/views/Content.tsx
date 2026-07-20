@@ -95,7 +95,7 @@ function AreaView({ plugin, view, name }: ViewProps & { name: string }) {
 			{groups.map(({ project, tasks: list }) => (
 				<div key={project.path}>
 					<div className="taskflow-group-header">{project.name}</div>
-					<TaskRows tasks={list} plugin={plugin} view={view} hideProject />
+					<TaskRows tasks={list} plugin={plugin} view={view} hideSource />
 				</div>
 			))}
 		</div>
@@ -150,7 +150,7 @@ function HistoryEntry({ entry, plugin }: { entry: CompletionEntry; plugin: TaskF
 				<div className="taskflow-task-title is-closed">{entry.title}</div>
 				{projectName && (
 					<div className="taskflow-task-meta">
-						<span className="taskflow-chip taskflow-chip-project">{projectName}</span>
+						<span className="taskflow-chip taskflow-chip-source">{projectName}</span>
 					</div>
 				)}
 			</div>
@@ -193,13 +193,13 @@ function ProjectView({ plugin, view, path, wide }: ViewProps & { path: string })
 			{groups.map(({ heading, tasks: list }) => (
 				<div key={heading ?? ''}>
 					{heading !== undefined && <div className="taskflow-group-header">{heading}</div>}
-					<TaskRows tasks={list} plugin={plugin} view={view} hideProject orderKey={`project:${path}`} />
+					<TaskRows tasks={list} plugin={plugin} view={view} hideSource orderKey={`project:${path}`} />
 				</div>
 			))}
 			{someday.length > 0 && (
 				<div className="taskflow-project-someday">
 					<div className="taskflow-group-header">Someday</div>
-					<TaskRows tasks={someday} plugin={plugin} view={view} hideProject />
+					<TaskRows tasks={someday} plugin={plugin} view={view} hideSource />
 				</div>
 			)}
 		</div>

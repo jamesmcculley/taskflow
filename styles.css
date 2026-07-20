@@ -765,8 +765,9 @@
 	white-space: nowrap;
 }
 
-.taskflow-chip-project {
+.taskflow-chip-source {
 	color: var(--text-accent);
+	font-style: italic;
 }
 
 .taskflow-chip-tag {

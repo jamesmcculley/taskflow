@@ -75,7 +75,7 @@ export function BoardView({
 					onDragStart={() => setDragId(t.id)}
 					onDragEnd={() => setDragId(null)}
 				>
-					<TaskItem task={t} plugin={plugin} view={view} hideProject />
+					<TaskItem task={t} plugin={plugin} view={view} hideSource />
 				</div>
 			))}
 		</div>

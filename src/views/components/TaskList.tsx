@@ -64,7 +64,7 @@ interface TaskRowsProps {
 	tasks: Task[];
 	plugin: TaskFlowPlugin;
 	view: TaskFlowView;
-	hideProject?: boolean;
+	hideSource?: boolean;
 	/** Presence enables drag-reorder, scoped to this key (e.g. "list:today"). */
 	orderKey?: string;
 	/** Rendered when there are no rows (including lingering ones). */
@@ -76,7 +76,7 @@ export function TaskRows({
 	tasks,
 	plugin,
 	view,
-	hideProject,
+	hideSource,
 	orderKey,
 	emptyMessage,
 }: TaskRowsProps) {
@@ -122,7 +122,7 @@ export function TaskRows({
 						task={task}
 						plugin={plugin}
 						view={view}
-						hideProject={hideProject}
+						hideSource={hideSource}
 						lingering={lingerIds.has(task.id)}
 					/>
 				</div>

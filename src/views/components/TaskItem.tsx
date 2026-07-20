@@ -40,13 +40,14 @@ export function TaskItem({
 	task,
 	plugin,
 	view,
-	hideProject,
+	hideSource,
 	lingering,
 }: {
 	task: Task;
 	plugin: TaskFlowPlugin;
 	view: TaskFlowView;
-	hideProject?: boolean;
+	/** Suppress the source-note chip — used inside that note's own project/area view, where it's redundant. */
+	hideSource?: boolean;
 	lingering?: boolean;
 }) {
 	const selectedId = useStore(plugin.store, (s) => s.selectedId);
@@ -57,7 +58,10 @@ export function TaskItem({
 		if (selected) rowRef.current?.scrollIntoView({ block: 'nearest' });
 	}, [selected]);
 
-	const projectName = task.project?.split('/').pop()?.replace(/\.md$/, '');
+	// The note a task lives in, shown as a tag-like chip regardless of whether
+	// that note is a project — Inbox/daily-note/plain-note tasks previously had
+	// no visible indicator of where they came from.
+	const sourceName = task.file.split('/').pop()?.replace(/\.md$/, '');
 	const today = todayISO();
 	const badge = task.due && task.status === 'todo' ? deadlineBadge(task.due, today) : null;
 
@@ -133,8 +137,10 @@ export function TaskItem({
 						</span>
 					)}
 					{task.evening && <span className="taskflow-chip taskflow-chip-evening">🌙 evening</span>}
-					{projectName && !hideProject && (
-						<span className="taskflow-chip taskflow-chip-project">{projectName}</span>
+					{sourceName && !hideSource && (
+						<span className="taskflow-chip taskflow-chip-source" title={task.file}>
+							#{sourceName}
+						</span>
 					)}
 					{task.heading && <span className="taskflow-chip taskflow-chip-heading">{task.heading}</span>}
 					{task.scheduled && (

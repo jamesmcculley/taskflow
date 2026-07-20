@@ -69,10 +69,10 @@ describe('selectReviewStepTasks', () => {
 		expect(selectReviewStepTasks(overdue!, s, TODAY).map((t) => t.id)).toEqual(['over']);
 	});
 
-	it('an overdue inbox task appears in both steps (lists are live, so processing it once clears both)', () => {
+	it('an unfiled overdue task appears only in Overdue, not Inbox (Inbox is undated triage only)', () => {
 		const s = state([task({ id: 'both', due: '2026-07-01' })]);
-		const [inbox, overdue] = buildReviewSteps(s, TODAY);
-		expect(selectReviewStepTasks(inbox!, s, TODAY).map((t) => t.id)).toEqual(['both']);
-		expect(selectReviewStepTasks(overdue!, s, TODAY).map((t) => t.id)).toEqual(['both']);
+		const steps = buildReviewSteps(s, TODAY);
+		expect(steps.map((st) => st.key)).toEqual(['overdue']);
+		expect(selectReviewStepTasks(steps[0]!, s, TODAY).map((t) => t.id)).toEqual(['both']);
 	});
 });

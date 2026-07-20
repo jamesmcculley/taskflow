@@ -118,14 +118,29 @@ describe('selectTodayTasks', () => {
 });
 
 describe('selectInboxTasks', () => {
-	it('includes only open tasks without a project', () => {
+	it('includes only open, unfiled, undated tasks', () => {
 		const tasks = byId([
 			task({ id: 'a' }),
 			task({ id: 'b', project: 'Projects/X.md', file: 'Projects/X.md' }),
 			task({ id: 'c', status: 'done' }),
 			task({ id: 'd', status: 'cancelled' }),
+			task({ id: 'e', scheduled: '2026-07-25' }),
+			task({ id: 'f', due: '2026-08-01' }),
 		]);
 		expect(selectInboxTasks(tasks).map((t) => t.id)).toEqual(['a']);
+	});
+
+	it('is a triage holding area: scheduling removes, clearing the date restores', () => {
+		// Same task, same file — only the presence of a date changes.
+		const scheduled = byId([task({ id: 'a', scheduled: '2026-07-25' })]);
+		expect(selectInboxTasks(scheduled)).toEqual([]);
+		const cleared = byId([task({ id: 'a' })]);
+		expect(selectInboxTasks(cleared).map((t) => t.id)).toEqual(['a']);
+	});
+
+	it('a completed dated task never reappears in Inbox merely by editing', () => {
+		const tasks = byId([task({ id: 'a', status: 'done', scheduled: '2026-07-25' })]);
+		expect(selectInboxTasks(tasks)).toEqual([]);
 	});
 });
 
