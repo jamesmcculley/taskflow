@@ -21,7 +21,24 @@ No build tools needed — the plugin is three files in your vault:
 2. Open the vault in Obsidian → **Settings → Community plugins** → turn off Restricted mode → enable **TaskFlow**. (Restart Obsidian first if it was already open.)
 3. Run the command **TaskFlow: Open sidebar** (Cmd/Ctrl+P).
 
-To update, re-download the same three files from the newest release and reload Obsidian.
+## Updating
+
+The sidebar footer always shows the version currently running ("TaskFlow v0.10.0") — check it against the [latest release](https://github.com/jamesmcculley/taskflow/releases/latest) to see if you're behind.
+
+1. Re-download the same three files (`main.js`, `manifest.json`, `styles.css`) from the latest release into `<your vault>/.obsidian/plugins/taskflow/`, overwriting the old ones. Reusing the terminal command from Quick install works as-is — `curl`'s `-O` flag overwrites by default:
+
+   ```bash
+   VAULT="/path/to/your/vault"
+   cd "$VAULT/.obsidian/plugins/taskflow"
+   curl -LO https://github.com/jamesmcculley/taskflow/releases/latest/download/main.js
+   curl -LO https://github.com/jamesmcculley/taskflow/releases/latest/download/manifest.json
+   curl -LO https://github.com/jamesmcculley/taskflow/releases/latest/download/styles.css
+   ```
+
+2. Reload the plugin — either click the **⟳** button next to the version number in the sidebar footer, or toggle TaskFlow off and on in **Settings → Community plugins**. A full Obsidian restart also works but isn't required.
+3. Check the sidebar footer again to confirm the new version loaded.
+
+Nothing about your tasks, projects, or settings depends on the plugin version — `data.json` and your markdown are untouched by an update.
 
 ## Conventions
 
