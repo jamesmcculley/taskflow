@@ -46,6 +46,15 @@ export function BoardView({
 		setDragId(null);
 	};
 
+	// Dropping onto Someday sends the task there instead of relocating it
+	// under a heading; any card draggable into it is guaranteed not already
+	// someday (selectProjectGroups excludes someday tasks from its columns),
+	// so this can only ever turn it on, never accidentally toggle it off.
+	const dropOnSomeday = () => {
+		if (dragId) void plugin.actions.toggleSomeday(dragId);
+		setDragId(null);
+	};
+
 	const column = (
 		key: string,
 		heading: string | undefined,
@@ -60,7 +69,8 @@ export function BoardView({
 			}}
 			onDrop={(e) => {
 				e.preventDefault();
-				if (!dimmed) dropOn(heading);
+				if (dimmed) dropOnSomeday();
+				else dropOn(heading);
 			}}
 		>
 			<div className="taskflow-board-column-header">

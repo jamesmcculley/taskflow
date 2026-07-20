@@ -333,6 +333,13 @@ describe('e2e: moving tasks', () => {
 		const project = h.fileContent('Projects/Site.md');
 		expect(project.indexOf('^t-deploy')).toBeLessThan(project.indexOf('# Site'));
 	});
+
+	it('toggleSomeday (board drop onto the Someday column) tags the line and drops it out of heading groups', async () => {
+		await h.actions.toggleSomeday('t-mood');
+		expect(h.fileContent('Projects/Site.md')).toContain('Moodboard #someday');
+		await h.reindex();
+		expect(h.task('t-mood')?.someday).toBe(true);
+	});
 });
 
 describe('e2e: checklist toggle', () => {

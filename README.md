@@ -144,7 +144,7 @@ Lines are plain list items (not checkboxes) so the indexer ignores them; the `%%
 - **Click a date chip** on any task to reschedule (⏳) or change the deadline (📅) via the picker.
 - **Overdue → Today**: the button on Today's Overdue header (or the `Roll all overdue tasks to today` command) reschedules everything that slipped in one shot.
 - **Complete on date…** in the context menu backdates a completion — the ✅ stamp, History, stats, and the daily-note journal all land on the chosen day.
-- **Board view**: in the wide two-pane layout, project views have a list/board toggle in the header — columns are the project's headings, and dragging a card between columns moves the task under that heading in the markdown.
+- **Board view**: in the wide two-pane layout, project views have a list/board toggle in the header — columns are the project's headings, and dragging a card between columns moves the task under that heading in the markdown. A dimmed **Someday** column sits at the end; dropping a card there tags it `#someday` instead of moving it under a heading.
 - **Export History as CSV** writes `TaskFlow History.csv` to the vault root for spreadsheet analysis.
 
 ## Architecture
